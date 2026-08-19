@@ -3,84 +3,168 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Header } from './components/Header';
+import { CurrentStopSelector } from './components/CurrentStopSelector';
+import { EcoImpactCard } from './components/EcoImpactCard';
 import { LoadGauge } from './components/LoadGauge';
-import { CheckinControls } from './components/CheckinControls';
 import { RouteTimeline } from './components/RouteTimeline';
+import { CheckinControls } from './components/CheckinControls';
 import { PredictionChart } from './components/PredictionChart';
 import { LiveActivityFeed } from './components/LiveActivityFeed';
 import { SimulationBar } from './components/SimulationBar';
-import { KarmaModal } from './components/KarmaModal';
 import { calculateFutureLoadVector } from './predictionEngine';
-import { Vehicle, Route, PredictionState, CheckinLog, UserStats } from './types';
+import { Vehicle, Route, PredictionState, CheckinLog } from './types';
 
-// Default initial state
-const INITIAL_ROUTE: Route = {
-  id: 'route-101',
-  name: 'Downtown Express Line',
-  code: 'Line 42',
+// Structured Route 515A Definition with exact 5 stops and leg metrics
+export const ROUTE_515A: Route = {
+  id: 'route-515A',
+  name: 'Route 515A (Tambaram West ⇄ Kovalam)',
+  code: '515A Express',
   stops: [
-    { id: 'stop-1', name: 'Central Station', eta: 'Departing', distance: '0.0 km', zone: 'Downtown Corridor', landmark: 'Grand Concourse' },
-    { id: 'stop-2', name: 'Tech Innovation Hub', eta: '4 min', distance: '1.8 km', zone: 'Tech District', landmark: 'Silicon Plaza Tower' },
-    { id: 'stop-3', name: 'Civic Center Plaza', eta: '9 min', distance: '4.2 km', zone: 'Government Quarter', landmark: 'City Hall & Library' },
-    { id: 'stop-4', name: 'University Medical Campus', eta: '15 min', distance: '6.7 km', zone: 'Academic Heights', landmark: 'Memorial Hospital Gate' },
-    { id: 'stop-5', name: 'Riverfront Terminal', eta: '22 min', distance: '9.5 km', zone: 'Harbor Gateway', landmark: 'Ferry Piers' }
+    {
+      id: 'stop-1',
+      name: 'Tambaram West Bus Stand',
+      eta: 'Departing',
+      distance: '0.0 km',
+      distanceToNext: 8.4,
+      minutesToNext: 17,
+      toNextStopDistance: '~8.4 km',
+      toNextStopTime: '~17 minutes',
+      zone: 'Tambaram Central',
+      landmark: 'GST Road Transit Hub'
+    },
+    {
+      id: 'stop-2',
+      name: 'Vandalur Zoo',
+      eta: '17 min',
+      distance: '8.4 km',
+      distanceToNext: 10.1,
+      minutesToNext: 15,
+      toNextStopDistance: '~10.1 km',
+      toNextStopTime: '~15 minutes',
+      zone: 'Vandalur Forest Corridor',
+      landmark: 'Arignar Anna Zoological Park'
+    },
+    {
+      id: 'stop-3',
+      name: 'VIT Chennai',
+      eta: '32 min',
+      distance: '18.5 km',
+      distanceToNext: 11.3,
+      minutesToNext: 22,
+      toNextStopDistance: '~11.3 km',
+      toNextStopTime: '~22 minutes',
+      zone: 'Academic Corridor (VK Road)',
+      landmark: 'VIT Chennai Main Campus Gate'
+    },
+    {
+      id: 'stop-4',
+      name: 'Kelambakkam Bus Terminal',
+      eta: '54 min',
+      distance: '29.8 km',
+      distanceToNext: 4.9,
+      minutesToNext: 14,
+      toNextStopDistance: '~4.9 km',
+      toNextStopTime: '~14 minutes',
+      zone: 'OMR Junction',
+      landmark: 'Kelambakkam Bazaar & ECR Link'
+    },
+    {
+      id: 'stop-5',
+      name: 'Kovalam Bus Stand',
+      eta: '1 hr 8 min',
+      distance: '34.7 km',
+      distanceToNext: 0,
+      minutesToNext: 0,
+      toNextStopDistance: 'Terminal',
+      toNextStopTime: 'End of Route',
+      zone: 'ECR Coastal Gateway',
+      landmark: 'Kovalam Beach Terminal'
+    }
   ]
 };
 
-const INITIAL_VEHICLE: Vehicle = {
-  id: 'bus-402',
-  route_id: 'route-101',
+export const INITIAL_VEHICLE_515A: Vehicle = {
+  id: 'bus-515A',
+  route_id: 'route-515A',
   max_capacity: 50,
-  current_load: 22,
-  current_stop: 'Central Station',
+  current_load: 24,
+  current_stop: 'Tambaram West Bus Stand',
   current_stop_idx: 0,
-  speed_kmh: 36,
-  driver_name: 'Alex Rivera',
-  license_plate: 'CP-8492',
+  speed_kmh: 38,
+  driver_name: 'Venkatesh Iyer',
+  license_plate: 'TN-09-N-5151',
   updated_at: new Date().toISOString()
+};
+
+// Deterministic distance from selected stop to final stop (Kovalam Bus Stand)
+// Distances:
+// Tambaram West -> Vandalur Zoo: 8.4 km
+// Vandalur Zoo -> VIT Chennai: 10.1 km
+// VIT Chennai -> Kelambakkam: 11.3 km
+// Kelambakkam -> Kovalam: 4.9 km
+const REMAINING_DISTANCES_KM: Record<string, number> = {
+  'stop-1': 34.7, // 8.4 + 10.1 + 11.3 + 4.9 = 34.7 km
+  'stop-2': 26.3, // 10.1 + 11.3 + 4.9 = 26.3 km
+  'stop-3': 16.2, // 11.3 + 4.9 = 16.2 km
+  'stop-4': 4.9,  // 4.9 km
+  'stop-5': 0.0   // 0 km (Final stop)
 };
 
 export default function App() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [route, setRoute] = useState<Route>(INITIAL_ROUTE);
-  const [vehicle, setVehicle] = useState<Vehicle>(INITIAL_VEHICLE);
+  const [route, setRoute] = useState<Route>(ROUTE_515A);
+  const [vehicle, setVehicle] = useState<Vehicle>(INITIAL_VEHICLE_515A);
   const [prediction, setPrediction] = useState<PredictionState>(() =>
-    calculateFutureLoadVector(22, 50, 0, INITIAL_ROUTE.stops, 3)
+    calculateFutureLoadVector(24, 50, 0, ROUTE_515A.stops, 3)
   );
   const [logs, setLogs] = useState<CheckinLog[]>([]);
   const [simulationActive, setSimulationActive] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [isKarmaModalOpen, setIsKarmaModalOpen] = useState<boolean>(false);
 
-  // Gamified User Stats with LocalStorage persistence
-  const [userStats, setUserStats] = useState<UserStats>(() => {
+  // User Stop Selection State ("Where are you now?")
+  // Persisted in state; if null, user sees initial stop selector first
+  const [userSelectedStopId, setUserSelectedStopId] = useState<string | null>(() => {
     try {
-      const saved = localStorage.getItem('commuter_stats');
-      if (saved) return JSON.parse(saved);
+      return localStorage.getItem('user_current_stop_id') || null;
     } catch {
-      // fallback
+      return null;
     }
-    return {
-      totalCheckins: 0,
-      karmaPoints: 20,
-      co2SavedKg: 0.8,
-      rankTitle: 'Active Commuter',
-      streakDays: 3
-    };
   });
 
-  const saveStats = useCallback((newStats: UserStats) => {
-    setUserStats(newStats);
+  const [hasConfirmedJourney, setHasConfirmedJourney] = useState<boolean>(() => {
     try {
-      localStorage.setItem('commuter_stats', JSON.stringify(newStats));
+      return Boolean(localStorage.getItem('user_current_stop_id'));
     } catch {
-      // fallback
+      return false;
     }
-  }, []);
+  });
+
+  // Calculate deterministic CO2 avoided based on selected stop
+  // Formula: CO2 avoided = journey distance × 0.12 kg CO2/km
+  const activeStopId = userSelectedStopId || 'stop-1';
+  const journeyDistanceKm = REMAINING_DISTANCES_KM[activeStopId] ?? 34.7;
+  const co2AvoidedKg = useMemo(() => {
+    return Number((journeyDistanceKm * 0.12).toFixed(2));
+  }, [journeyDistanceKm]);
+
+  const activeStopObj = useMemo(() => {
+    return route.stops.find((s) => s.id === activeStopId) || route.stops[0];
+  }, [route.stops, activeStopId]);
+
+  // Handle Stop Confirmation
+  const handleConfirmStop = (stopId: string) => {
+    setUserSelectedStopId(stopId);
+    setHasConfirmedJourney(true);
+    try {
+      localStorage.setItem('user_current_stop_id', stopId);
+    } catch {
+      // safe fallback
+    }
+  };
 
   // 1. Initial State Fetch from API
   const fetchStatus = useCallback(async () => {
@@ -89,7 +173,13 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         if (data.route) setRoute(data.route);
-        if (data.vehicle) setVehicle(data.vehicle);
+        if (data.vehicle) {
+          // Ensure display names match prompt requirements
+          setVehicle({
+            ...data.vehicle,
+            driver_name: 'Venkatesh Iyer'
+          });
+        }
         if (data.prediction) setPrediction(data.prediction);
         if (data.logs) setLogs(data.logs);
         if (typeof data.simulationActive === 'boolean') setSimulationActive(data.simulationActive);
@@ -99,11 +189,10 @@ export default function App() {
     }
   }, []);
 
-  // 2. Setup Socket.io connection (Prompt 3 requirement 1)
+  // 2. Setup Socket.io connection
   useEffect(() => {
     fetchStatus();
 
-    // Connect to Socket.io server on current origin
     const socketInstance = io(window.location.origin, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 10,
@@ -120,10 +209,12 @@ export default function App() {
       console.log('⚠️ Disconnected from Socket.io server');
     });
 
-    // Listen for 'load_update' event (Prompt 1 & 3 requirement)
     socketInstance.on('load_update', (data) => {
       if (data.vehicle) {
-        setVehicle(data.vehicle);
+        setVehicle({
+          ...data.vehicle,
+          driver_name: 'Venkatesh Iyer'
+        });
       }
       if (data.prediction) {
         setPrediction(data.prediction);
@@ -133,7 +224,6 @@ export default function App() {
       }
     });
 
-    // Listen for 'simulation_status' event
     socketInstance.on('simulation_status', (data) => {
       if (typeof data.active === 'boolean') {
         setSimulationActive(data.active);
@@ -147,19 +237,19 @@ export default function App() {
     };
   }, [fetchStatus]);
 
-  // 3. User Check-in Handler (Prompt 3 requirement 4)
+  // 3. User Check-in Handler (Boarding / Exiting)
   const handleCheckin = async (action: 'boarding' | 'alighting', count: number = 1): Promise<boolean> => {
     setIsSubmitting(true);
     try {
-      // Send POST to /api/checkin
       const res = await fetch('/api/checkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          vehicle_id: vehicle.id,
+          vehicle_id: 'bus-515A',
           action,
           count,
-          source: 'user'
+          source: 'user',
+          stop_name: activeStopObj.name
         })
       });
 
@@ -168,27 +258,26 @@ export default function App() {
       }
 
       const data = await res.json();
-      if (data.vehicle) setVehicle(data.vehicle);
+      if (data.vehicle) {
+        setVehicle({
+          ...data.vehicle,
+          driver_name: 'Venkatesh Iyer'
+        });
+      }
       if (data.prediction) setPrediction(data.prediction);
       if (data.log) setLogs((prev) => [data.log, ...prev.slice(0, 24)]);
-
-      // Update user gamification stats
-      const pointsEarned = action === 'boarding' ? 10 * count : 5 * count;
-      const co2Delta = action === 'boarding' ? 0.4 * count : 0.1 * count;
-      saveStats({
-        ...userStats,
-        totalCheckins: userStats.totalCheckins + 1,
-        karmaPoints: userStats.karmaPoints + pointsEarned,
-        co2SavedKg: userStats.co2SavedKg + co2Delta
-      });
 
       return true;
     } catch (err) {
       console.error('Error during checkin:', err);
-      // Fallback local update if offline
+      // Fallback local state update
       const delta = action === 'boarding' ? count : -count;
       const nextLoad = Math.max(0, Math.min(vehicle.max_capacity, vehicle.current_load + delta));
-      const updatedV: Vehicle = { ...vehicle, current_load: nextLoad };
+      const updatedV: Vehicle = {
+        ...vehicle,
+        current_load: nextLoad,
+        driver_name: 'Venkatesh Iyer'
+      };
       setVehicle(updatedV);
       setPrediction(calculateFutureLoadVector(nextLoad, vehicle.max_capacity, vehicle.current_stop_idx, route.stops));
       return true;
@@ -197,7 +286,7 @@ export default function App() {
     }
   };
 
-  // 4. Hackathon Simulation Handlers
+  // 4. Simulation Handlers
   const handleToggleSimulation = async () => {
     try {
       const res = await fetch('/api/simulation/toggle', {
@@ -221,7 +310,10 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         if (data.result) {
-          setVehicle(data.result.vehicle);
+          setVehicle({
+            ...data.result.vehicle,
+            driver_name: 'Venkatesh Iyer'
+          });
           setPrediction(data.result.prediction);
           setLogs((prev) => [data.result.log, ...prev.slice(0, 24)]);
         }
@@ -241,11 +333,16 @@ export default function App() {
       const res = await fetch('/api/vehicle/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ load: 22, stop_idx: 0 })
+        body: JSON.stringify({ load: 24, stop_idx: 0 })
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.vehicle) setVehicle(data.vehicle);
+        if (data.vehicle) {
+          setVehicle({
+            ...data.vehicle,
+            driver_name: 'Venkatesh Iyer'
+          });
+        }
         if (data.prediction) setPrediction(data.prediction);
       }
     } catch (err) {
@@ -254,81 +351,117 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-slate-950 font-sans antialiased">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950 font-sans antialiased">
       {/* Top Header */}
       <Header
         isConnected={isConnected}
-        userStats={userStats}
-        onOpenKarmaModal={() => setIsKarmaModalOpen(true)}
+        co2AvoidedKg={co2AvoidedKg}
+        driverName="Venkatesh Iyer"
+        vehicleName="Bus 515A"
         simulationActive={simulationActive}
       />
 
       {/* Main Content Layout */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
-        {/* Row 1: Prominent Bus Load Gauge */}
-        <section aria-label="Current Bus Capacity">
-          <LoadGauge vehicle={vehicle} />
-        </section>
-
-        {/* Row 2: Frictionless Check-in Buttons ("I'm Boarding" & "I'm Exiting") */}
-        <section aria-label="Commuter Action Controls">
-          <CheckinControls
-            onCheckin={handleCheckin}
-            currentLoad={vehicle.current_load}
-            maxCapacity={vehicle.max_capacity}
-            isSubmitting={isSubmitting}
-          />
-        </section>
-
-        {/* Row 3: 5-Stop Route Timeline & Telemetry */}
-        <section aria-label="5-Stop Route Corridor">
-          <RouteTimeline
-            route={route}
-            vehicle={vehicle}
-            predictions={prediction.stopsForecast}
-            onManualAdvance={handleStepNextStop}
-          />
-        </section>
-
-        {/* Row 4: Predictive Engine (3-Stop State Vector Forecast) */}
-        <section aria-label="Linear Algebraic Load Forecasting">
-          <PredictionChart
-            prediction={prediction}
-            currentStopName={vehicle.current_stop || 'Central Station'}
-          />
-        </section>
-
-        {/* Row 5: Real-time Telemetry Activity Feed & Simulation Bar */}
-        <div className="grid grid-cols-1 gap-6">
-          <section aria-label="Hackathon Simulation Controls">
-            <SimulationBar
-              simulationActive={simulationActive}
-              onToggleSimulation={handleToggleSimulation}
-              onStepNextStop={handleStepNextStop}
-              onTriggerSurge={handleTriggerSurge}
-              onResetVehicle={handleResetVehicle}
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        {/* STEP 2: Initial Bus Stop Selection Screen if not selected yet */}
+        {!hasConfirmedJourney ? (
+          <section aria-label="Bus Stop Selection">
+            <CurrentStopSelector
+              stops={route.stops}
+              selectedStopId={userSelectedStopId || ''}
+              onConfirmStop={handleConfirmStop}
+              isInitialSelection={true}
             />
           </section>
+        ) : (
+          <>
+            {/* STEP 3 & STEP 4: Selected Journey Dashboard */}
 
-          <section aria-label="Real-time Transit Activity Feed">
-            <LiveActivityFeed logs={logs} />
-          </section>
-        </div>
+            {/* Quick Stop Location Selector Card / Change Stop Bar */}
+            <section aria-label="Current Bus Stop Selection">
+              <CurrentStopSelector
+                stops={route.stops}
+                selectedStopId={activeStopId}
+                onConfirmStop={handleConfirmStop}
+                isInitialSelection={false}
+              />
+            </section>
+
+            {/* Prominent Environmental Impact Card (CO2 Emissions Avoided) */}
+            <section aria-label="Environmental CO2 Impact">
+              <EcoImpactCard
+                startingStopName={activeStopObj.name}
+                journeyDistanceKm={journeyDistanceKm}
+                co2AvoidedKg={co2AvoidedKg}
+              />
+            </section>
+
+            {/* Prominent Bus Load Gauge & Driver Info */}
+            <section aria-label="Current Bus Capacity">
+              <LoadGauge
+                vehicle={vehicle}
+                driverName="Venkatesh Iyer"
+                vehicleName="Bus 515A"
+              />
+            </section>
+
+            {/* Frictionless Check-in Controls */}
+            <section aria-label="Commuter Action Controls">
+              <CheckinControls
+                onCheckin={handleCheckin}
+                currentLoad={vehicle.current_load}
+                maxCapacity={vehicle.max_capacity}
+                isSubmitting={isSubmitting}
+                userStopName={activeStopObj.name}
+              />
+            </section>
+
+            {/* 5-Stop Route Timeline starting from selected stop */}
+            <section aria-label="Route 515A Journey Timeline">
+              <RouteTimeline
+                route={route}
+                vehicle={vehicle}
+                selectedStopId={activeStopId}
+                onChangeStop={() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            </section>
+
+            {/* Predictive Crowd Intelligence Forecast */}
+            <section aria-label="Predictive Passenger Load Forecasting">
+              <PredictionChart
+                prediction={prediction}
+                currentStopName={vehicle.current_stop || 'Tambaram West Bus Stand'}
+              />
+            </section>
+
+            {/* Real-time Telemetry Activity Feed & Simulation Bar */}
+            <div className="grid grid-cols-1 gap-6">
+              <section aria-label="Hackathon Simulation Engine">
+                <SimulationBar
+                  simulationActive={simulationActive}
+                  onToggleSimulation={handleToggleSimulation}
+                  onStepNextStop={handleStepNextStop}
+                  onTriggerSurge={handleTriggerSurge}
+                  onResetVehicle={handleResetVehicle}
+                />
+              </section>
+
+              <section aria-label="Live Telemetry Stream">
+                <LiveActivityFeed logs={logs} />
+              </section>
+            </div>
+          </>
+        )}
       </main>
 
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-900 bg-slate-950/80 py-4 px-6 text-center text-xs text-slate-400">
         <p>
-          <strong className="text-slate-300">CommuterPulse</strong> • Real-time Transit Load Intelligence & State-Space Crowd Forecasting
+          <strong className="text-slate-300">CommuterPulse</strong> • Bus 515A (Tambaram West ⇄ Kovalam) • Driver: Venkatesh Iyer • Real-time Crowd Intelligence & CO₂ Tracking
         </p>
       </footer>
-
-      {/* Gamified Karma Rewards Modal */}
-      <KarmaModal
-        isOpen={isKarmaModalOpen}
-        onClose={() => setIsKarmaModalOpen(false)}
-        userStats={userStats}
-      />
     </div>
   );
 }

@@ -23,8 +23,8 @@ export const CheckinControls: React.FC<CheckinControlsProps> = ({
   const triggerEcoConfetti = () => {
     try {
       confetti({
-        particleCount: 45,
-        spread: 65,
+        particleCount: 40,
+        spread: 60,
         origin: { y: 0.8 },
         colors: ['#10b981', '#34d399', '#059669', '#6ee7b7']
       });
@@ -54,18 +54,17 @@ export const CheckinControls: React.FC<CheckinControlsProps> = ({
 
   const isFull = currentLoad >= maxCapacity;
   const isEmpty = currentLoad <= 0;
-  const legCo2Saved = (selectedCount * 1.42).toFixed(2);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 text-white shadow-xl">
       <div className="flex items-center justify-between gap-2 mb-4">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
-            <span>Frictionless Transit Check-in</span>
+            <span>Live Check-in</span>
             <Leaf className="w-4 h-4 text-emerald-400" />
           </h2>
           <p className="text-xs text-slate-400">
-            Checking in at <span className="text-emerald-300 font-semibold">{userStopName}</span> saves <span className="text-emerald-400 font-bold">~{legCo2Saved} kg CO₂</span> vs driving
+            One tap updates crowd intelligence for all passengers at <span className="text-emerald-300 font-semibold">{userStopName}</span>
           </p>
         </div>
 
@@ -90,14 +89,14 @@ export const CheckinControls: React.FC<CheckinControlsProps> = ({
         </div>
       </div>
 
-      {/* Two Large Frictionless Touch Action Buttons */}
+      {/* Action Buttons */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* "I'm Boarding" Button */}
         <button
           id="btn-boarding"
           onClick={() => handleAction('boarding')}
           disabled={isSubmitting || isFull}
-          className={`relative group overflow-hidden rounded-2xl p-4 sm:p-5 flex items-center justify-between text-left transition-all duration-300 transform active:scale-98 shadow-lg ${
+          className={`relative group overflow-hidden rounded-2xl p-4 sm:p-5 flex items-center justify-between text-left transition-all duration-300 transform active:scale-98 shadow-lg cursor-pointer ${
             isFull
               ? 'bg-slate-800 opacity-60 cursor-not-allowed border border-slate-700'
               : 'bg-gradient-to-br from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 border border-emerald-400/30 shadow-emerald-950/40 hover:shadow-emerald-500/20'
@@ -114,7 +113,7 @@ export const CheckinControls: React.FC<CheckinControlsProps> = ({
             </div>
             <p className="text-xs text-emerald-100/90 mt-0.5 flex items-center gap-1 font-medium">
               <Leaf className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-              <span>Saves {legCo2Saved} kg CO₂ on Route 515A</span>
+              <span>Board Bus 515A</span>
             </p>
           </div>
 
@@ -134,7 +133,7 @@ export const CheckinControls: React.FC<CheckinControlsProps> = ({
           id="btn-exiting"
           onClick={() => handleAction('alighting')}
           disabled={isSubmitting || isEmpty}
-          className={`relative group overflow-hidden rounded-2xl p-4 sm:p-5 flex items-center justify-between text-left transition-all duration-300 transform active:scale-98 shadow-lg ${
+          className={`relative group overflow-hidden rounded-2xl p-4 sm:p-5 flex items-center justify-between text-left transition-all duration-300 transform active:scale-98 shadow-lg cursor-pointer ${
             isEmpty
               ? 'bg-slate-800 opacity-60 cursor-not-allowed border border-slate-700'
               : 'bg-gradient-to-br from-slate-800 to-slate-850 hover:from-slate-750 hover:to-slate-800 border border-slate-700 hover:border-slate-600 shadow-slate-950/40'
@@ -150,7 +149,7 @@ export const CheckinControls: React.FC<CheckinControlsProps> = ({
               I'm Exiting
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Trip completed • Space freed for waiting riders
+              Trip finished • Space freed for waiting riders
             </p>
           </div>
 

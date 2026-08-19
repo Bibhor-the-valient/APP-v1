@@ -1,12 +1,18 @@
 import React from 'react';
-import { Users, Gauge, MapPin, ShieldCheck, AlertTriangle, AlertOctagon, UserCheck } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, AlertOctagon, UserCheck, MapPin } from 'lucide-react';
 import { Vehicle } from '../types';
 
 interface LoadGaugeProps {
   vehicle: Vehicle;
+  driverName?: string;
+  vehicleName?: string;
 }
 
-export const LoadGauge: React.FC<LoadGaugeProps> = ({ vehicle }) => {
+export const LoadGauge: React.FC<LoadGaugeProps> = ({
+  vehicle,
+  driverName = 'Venkatesh Iyer',
+  vehicleName = 'Bus 515A'
+}) => {
   const currentLoad = vehicle.current_load;
   const maxCapacity = vehicle.max_capacity || 50;
   const percentage = Math.min(100, Math.max(0, Math.round((currentLoad / maxCapacity) * 100)));
@@ -54,11 +60,27 @@ export const LoadGauge: React.FC<LoadGaugeProps> = ({ vehicle }) => {
       <div className="flex flex-col lg:flex-row items-center justify-between gap-6 relative z-10">
         {/* Left: Prominent Crowd Number & Status */}
         <div className="flex-1 w-full text-center lg:text-left">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-2 border transition-all duration-300"
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-2 border transition-all duration-300"
             style={{
-              backgroundColor: statusColor === 'emerald' ? 'rgba(16, 185, 129, 0.12)' : statusColor === 'amber' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(244, 63, 94, 0.12)',
-              borderColor: statusColor === 'emerald' ? 'rgba(16, 185, 129, 0.3)' : statusColor === 'amber' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(244, 63, 94, 0.3)',
-              color: statusColor === 'emerald' ? '#34d399' : statusColor === 'amber' ? '#fbbf24' : '#fb7185',
+              backgroundColor:
+                statusColor === 'emerald'
+                  ? 'rgba(16, 185, 129, 0.12)'
+                  : statusColor === 'amber'
+                  ? 'rgba(245, 158, 11, 0.12)'
+                  : 'rgba(244, 63, 94, 0.12)',
+              borderColor:
+                statusColor === 'emerald'
+                  ? 'rgba(16, 185, 129, 0.3)'
+                  : statusColor === 'amber'
+                  ? 'rgba(245, 158, 11, 0.3)'
+                  : 'rgba(244, 63, 94, 0.3)',
+              color:
+                statusColor === 'emerald'
+                  ? '#34d399'
+                  : statusColor === 'amber'
+                  ? '#fbbf24'
+                  : '#fb7185'
             }}
           >
             <Icon className="w-3.5 h-3.5" />
@@ -66,9 +88,15 @@ export const LoadGauge: React.FC<LoadGaugeProps> = ({ vehicle }) => {
           </div>
 
           <div className="flex items-baseline justify-center lg:justify-start gap-3 my-1">
-            <span className={`text-5xl sm:text-6xl font-black tracking-tight transition-colors duration-500 ${
-              statusColor === 'emerald' ? 'text-emerald-400' : statusColor === 'amber' ? 'text-amber-400' : 'text-rose-400'
-            }`}>
+            <span
+              className={`text-5xl sm:text-6xl font-black tracking-tight transition-colors duration-500 ${
+                statusColor === 'emerald'
+                  ? 'text-emerald-400'
+                  : statusColor === 'amber'
+                  ? 'text-amber-400'
+                  : 'text-rose-400'
+              }`}
+            >
               {currentLoad}
             </span>
             <span className="text-2xl sm:text-3xl text-slate-500 font-semibold">
@@ -100,9 +128,9 @@ export const LoadGauge: React.FC<LoadGaugeProps> = ({ vehicle }) => {
           </div>
         </div>
 
-        {/* Center / Right: Circular Animated Radial Load Meter */}
+        {/* Center / Right: Circular Radial Meter */}
         <div className="flex flex-col items-center justify-center relative">
-          <div className="relative w-40 h-40 flex items-center justify-center">
+          <div className="relative w-36 h-36 sm:w-40 sm:h-40 flex items-center justify-center">
             <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
               <circle
                 cx="80"
@@ -116,7 +144,13 @@ export const LoadGauge: React.FC<LoadGaugeProps> = ({ vehicle }) => {
                 cx="80"
                 cy="80"
                 r={radius}
-                stroke={statusColor === 'emerald' ? '#10b981' : statusColor === 'amber' ? '#f59e0b' : '#f43f5e'}
+                stroke={
+                  statusColor === 'emerald'
+                    ? '#10b981'
+                    : statusColor === 'amber'
+                    ? '#f59e0b'
+                    : '#f43f5e'
+                }
                 strokeWidth="12"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
@@ -131,7 +165,7 @@ export const LoadGauge: React.FC<LoadGaugeProps> = ({ vehicle }) => {
                 {percentage}%
               </span>
               <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">
-                Load
+                Capacity
               </span>
             </div>
           </div>
@@ -153,19 +187,19 @@ export const LoadGauge: React.FC<LoadGaugeProps> = ({ vehicle }) => {
         </div>
       </div>
 
-      {/* Vehicle Info Bar with bus-515A & driver Venkatesh Iyer */}
+      {/* Vehicle & Driver Info Bar */}
       <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
         <div className="flex items-center gap-2">
           <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Current Location:</span>
+          <span>Vehicle Location:</span>
           <span className="font-semibold text-slate-200">{vehicle.current_stop || 'Tambaram West Bus Stand'}</span>
         </div>
         <div className="flex items-center gap-3">
-          <span>Vehicle: <strong className="text-slate-200">{vehicle.id || 'bus-515A'}</strong> ({vehicle.license_plate || 'TN-09-N-5151'})</span>
+          <span>Bus: <strong className="text-slate-100">{vehicleName}</strong></span>
           <span className="text-slate-600">•</span>
           <span className="flex items-center gap-1">
-            <UserCheck className="w-3 h-3 text-cyan-400" />
-            <span>Driver: <strong className="text-slate-200">{vehicle.driver_name || 'Venkatesh Iyer'}</strong></span>
+            <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Driver: <strong className="text-white">{driverName}</strong></span>
           </span>
         </div>
       </div>

@@ -3,6 +3,8 @@ export interface Stop {
   name: string;
   eta: string;
   distance: string;
+  distanceToNext?: number; // km
+  minutesToNext?: number; // minutes
   toNextStopDistance?: string;
   toNextStopTime?: string;
   zone: string;
@@ -55,10 +57,10 @@ export interface PredictionState {
 export interface CheckinLog {
   id: string;
   timestamp: string;
-  action: 'boarding' | 'alighting';
+  action: 'boarding' | 'alighting' | 'stop_arrival';
   delta: number;
   newLoad: number;
-  source: 'user' | 'simulator' | 'sensor';
+  source: 'user' | 'simulator' | 'sensor' | 'admin';
   stopName: string;
   co2SavedLegKg?: number;
 }

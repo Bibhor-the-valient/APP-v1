@@ -1,181 +1,159 @@
 import React from 'react';
-import { MapPin, Navigation, Clock, CheckCircle2, Bus, ChevronRight, User } from 'lucide-react';
-import { Route, Vehicle, StopPrediction } from '../types';
+import { MapPin, Navigation, Clock, CheckCircle2, Bus, ChevronDown, ArrowDown, User, Edit3 } from 'lucide-react';
+import { Route, Vehicle, Stop } from '../types';
 
 interface RouteTimelineProps {
   route: Route;
   vehicle: Vehicle;
-  predictions: StopPrediction[];
-  userStopId?: string;
-  onManualAdvance?: () => void;
+  selectedStopId: string;
+  onChangeStop?: () => void;
 }
 
 export const RouteTimeline: React.FC<RouteTimelineProps> = ({
   route,
   vehicle,
-  predictions,
-  userStopId,
-  onManualAdvance
+  selectedStopId,
+  onChangeStop
 }) => {
-  const currentIdx = vehicle.current_stop_idx || 0;
-  const stops = route.stops || [];
+  const allStops = route.stops || [];
+  const selectedIndex = allStops.findIndex((s) => s.id === selectedStopId);
+  const currentIdx = selectedIndex >= 0 ? selectedIndex : 0;
+
+  // Filter stops starting from the selected stop
+  const remainingStops = allStops.slice(currentIdx);
+  const stopsRemainingCount = remainingStops.length;
+  const isAtFinalStop = currentIdx === allStops.length - 1;
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 text-white shadow-xl">
-      <div className="flex items-center justify-between gap-4 mb-5">
+      {/* Header with Journey summary */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-800">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
-              <Navigation className="w-4 h-4 text-emerald-400" />
-              <span>Route 515A: 5-Stop Corridor Timeline</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+              <Navigation className="w-5 h-5 text-emerald-400" />
+              <span>Your Journey</span>
             </h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              Bus 515A
+            </span>
           </div>
-          <p className="text-xs text-slate-400">
-            Tambaram West ⇄ Kovalam via Vandalur Zoo, VIT Chennai & Kelambakkam • Driver: Venkatesh Iyer
+
+          <p className="text-xs sm:text-sm text-slate-300 mt-1">
+            {isAtFinalStop ? (
+              <span className="text-emerald-400 font-semibold">You've reached the final stop.</span>
+            ) : (
+              <span>
+                <strong className="text-emerald-300 font-bold">{stopsRemainingCount} stop{stopsRemainingCount > 1 ? 's' : ''} remaining</strong> along Route 515A corridor
+              </span>
+            )}
           </p>
         </div>
 
-        {onManualAdvance && (
+        {onChangeStop && (
           <button
-            onClick={onManualAdvance}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 transition-all hover:scale-105 active:scale-95 shadow-sm"
-            title="Advance bus to next stop in simulation"
+            onClick={onChangeStop}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-750 text-cyan-300 border border-slate-700 transition-all hover:border-cyan-500/40"
           >
-            <span>Next Stop</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>Change Current Stop</span>
           </button>
         )}
       </div>
 
-      {/* Visual Timeline Nodes */}
-      <div className="relative">
-        {/* Continuous Connecting Line */}
-        <div className="hidden md:block absolute top-1/2 left-6 right-6 h-1 bg-slate-800 -translate-y-1/2 z-0" />
-        
-        {/* Colored Completed Segment */}
-        <div
-          className="hidden md:block absolute top-1/2 left-6 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 -translate-y-1/2 z-0 transition-all duration-700"
-          style={{
-            width: `${Math.min(100, Math.max(0, (currentIdx / (stops.length - 1)) * 100))}%`
-          }}
-        />
+      {/* Vertical / Step-by-Step Connected Journey Timeline */}
+      <div className="space-y-4">
+        {remainingStops.map((stop, idx) => {
+          const originalStopIndex = currentIdx + idx;
+          const isUserStart = idx === 0;
+          const isFinal = originalStopIndex === allStops.length - 1;
+          const hasNextStop = idx < remainingStops.length - 1;
 
-        {/* 5-Stop Grid Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-2.5 relative z-10">
-          {stops.map((stop, idx) => {
-            const isCurrent = idx === currentIdx;
-            const isPassed = idx < currentIdx;
-            const isUserLocation = stop.id === userStopId;
-
-            // Find matching prediction for future stops
-            const stopForecast = predictions.find(p => p.stopIndex === idx);
-
-            return (
+          return (
+            <div key={stop.id} className="relative">
+              {/* Card representing this stop */}
               <div
-                key={stop.id}
-                className={`relative rounded-xl p-3.5 transition-all duration-300 border ${
-                  isCurrent
-                    ? 'bg-gradient-to-b from-emerald-950/80 to-slate-900 border-emerald-500/60 shadow-lg shadow-emerald-950/50 ring-2 ring-emerald-400/20'
-                    : isUserLocation
-                    ? 'bg-slate-850/90 border-cyan-500/60 ring-1 ring-cyan-400/30'
-                    : isPassed
-                    ? 'bg-slate-900/60 border-slate-800 opacity-75'
-                    : 'bg-slate-850/70 border-slate-800 hover:border-slate-700'
+                className={`rounded-2xl p-4 sm:p-5 border transition-all ${
+                  isUserStart
+                    ? 'bg-gradient-to-r from-emerald-950/80 via-slate-850 to-slate-900 border-emerald-400/50 shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-400/30'
+                    : isFinal
+                    ? 'bg-slate-850/90 border-slate-700'
+                    : 'bg-slate-850/60 border-slate-800 hover:border-slate-700'
                 }`}
               >
-                {/* Header Node Indicator */}
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5">
-                    {isCurrent ? (
-                      <div className="relative flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/40">
-                        <Bus className="w-4 h-4 text-slate-950 animate-pulse" />
-                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-300 animate-ping" />
-                      </div>
-                    ) : isPassed ? (
-                      <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-800 text-emerald-400 border border-emerald-500/30">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-800 text-slate-400 border border-slate-700 font-mono text-xs font-bold">
-                        {idx + 1}
-                      </div>
-                    )}
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                      Stop #{idx + 1}
-                    </span>
-                  </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  {/* Left: Stop Number & Name */}
+                  <div className="flex items-start sm:items-center gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
+                        isUserStart
+                          ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30'
+                          : 'bg-slate-800 text-slate-300 border border-slate-700'
+                      }`}
+                    >
+                      {isUserStart ? <User className="w-4 h-4" /> : originalStopIndex + 1}
+                    </div>
 
-                  <div className="flex items-center gap-1">
-                    {isUserLocation && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-0.5">
-                        <User className="w-2.5 h-2.5" /> You
-                      </span>
-                    )}
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      isCurrent
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : isPassed
-                        ? 'bg-slate-800 text-slate-500'
-                        : 'bg-teal-500/10 text-teal-300 border border-teal-500/20'
-                    }`}>
-                      {isCurrent ? 'Current' : isPassed ? 'Departed' : stop.eta}
-                    </span>
-                  </div>
-                </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-mono uppercase font-bold text-slate-400">
+                          Stop #{originalStopIndex + 1}
+                        </span>
+                        {isUserStart && (
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            Your Boarding Location
+                          </span>
+                        )}
+                        {isFinal && (
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                            Final Destination
+                          </span>
+                        )}
+                      </div>
 
-                {/* Stop Name */}
-                <div className="my-1">
-                  <h3 className={`text-sm font-bold truncate ${isCurrent ? 'text-emerald-200' : 'text-slate-100'}`}>
-                    {stop.name}
-                  </h3>
-                  <p className="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                    <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
-                    <span>{stop.zone}</span>
-                  </p>
-                </div>
-
-                {/* Next Stop Distance & Time (Prompt Requirement) */}
-                {stop.toNextStopDistance && stop.toNextStopDistance !== 'Terminal' ? (
-                  <div className="mt-2 py-1 px-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[10px] text-slate-300">
-                    <div className="font-medium text-emerald-400/90">
-                      To next stop: {stop.toNextStopDistance} | {stop.toNextStopTime}
+                      <h3 className="text-base sm:text-lg font-black text-white mt-0.5">
+                        {stop.name}
+                      </h3>
+                      <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{stop.zone}</span>
+                      </p>
                     </div>
                   </div>
-                ) : (
-                  <div className="mt-2 py-1 px-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[10px] text-slate-400">
-                    Terminal Stop • ECR
-                  </div>
-                )}
 
-                {/* Stop Crowding / Prediction Pill */}
-                <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-                  <span className="text-slate-500 font-mono text-[10px]">{stop.distance}</span>
-                  
-                  {isCurrent ? (
-                    <span className="font-semibold text-emerald-400 flex items-center gap-1 text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                      At Station
-                    </span>
-                  ) : isPassed ? (
-                    <span className="text-slate-500 text-[11px]">Departed</span>
-                  ) : stopForecast ? (
-                    <span className={`font-semibold flex items-center gap-1 text-[11px] ${
-                      stopForecast.statusLevel === 'low'
-                        ? 'text-emerald-400'
-                        : stopForecast.statusLevel === 'moderate'
-                        ? 'text-amber-400'
-                        : 'text-rose-400'
-                    }`}>
-                      <span>~{stopForecast.predictedLoad} pax</span>
-                    </span>
-                  ) : (
-                    <span className="text-slate-500 text-[11px]">{stop.eta}</span>
-                  )}
+                  {/* Right: Distance & Time to Next Stop */}
+                  <div className="sm:text-right bg-slate-900/80 sm:bg-transparent p-2.5 sm:p-0 rounded-xl border sm:border-0 border-slate-800">
+                    {!isFinal && stop.toNextStopDistance ? (
+                      <div>
+                        <span className="text-xs text-slate-400 font-medium block">
+                          To next stop:
+                        </span>
+                        <span className="text-sm font-bold text-emerald-400">
+                          {stop.toNextStopDistance} | {stop.toNextStopTime}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800/90 text-slate-300 text-xs font-bold border border-slate-700">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Final stop</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              {/* Connecting arrow / path line to next stop */}
+              {hasNextStop && (
+                <div className="flex items-center justify-center my-1.5">
+                  <div className="flex items-center gap-2 text-xs font-mono font-medium text-emerald-400/80 bg-slate-900/90 px-3 py-1 rounded-full border border-slate-800">
+                    <ArrowDown className="w-3.5 h-3.5 text-emerald-400 animate-bounce" />
+                    <span>Next Leg ({stop.toNextStopDistance} • {stop.toNextStopTime})</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
