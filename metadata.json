@@ -1,0 +1,6 @@
+{
+  "name": "CommuterPulse",
+  "description": "Real-time transit crowd intelligence dashboard with predictive passenger load forecasting and frictionless check-ins.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
